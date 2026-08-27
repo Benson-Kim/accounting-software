@@ -1,39 +1,320 @@
-import { useState } from 'react';
-import { User, Building2, Users, Car, Plus, Heart, ArrowRight, Check, Mail, Calendar } from 'lucide-react';
-import { Button, IconButton, RadioOptionButton, type RadioOption } from '@/components/buttons';
-import { Input, Select, Textarea, Checkbox, Switch, SearchInput, type SelectOption } from '@/components/inputs';
-import { Section, StateRow } from '@/components/Section';
+import { useState, useMemo } from 'react';
+import {
+  User,
+  Mail,
+  Phone,
+  Calendar,
+  MapPin,
+  Briefcase,
+  Building2,
+  DollarSign,
+  GraduationCap,
+  Home as HomeIcon,
+  Car,
+  Plane,
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  Clock,
+  ShieldCheck,
+  FileText,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
+import { Button, RadioOptionButton, type RadioOption } from '@/components/buttons';
+import { Input, Select, Textarea, Checkbox, type SelectOption } from '@/components/inputs';
+import { supabase } from '@/lib/supabase';
 
-const accountOptions: RadioOption[] = [
-  { value: 'individual', label: 'Individual', description: 'Personal account, just for you', icon: <User size={20} /> },
-  { value: 'company', label: 'Company', description: 'Business or organization', icon: <Building2 size={20} /> },
-  { value: 'group', label: 'Group', description: 'Team or shared account', icon: <Users size={20} /> },
-  { value: 'vehicle', label: 'Vehicle', description: 'Car, truck, or fleet asset', icon: <Car size={20} /> },
+/* ---------- step definitions ---------- */
+
+const STEPS = ['Loan Type', 'Loan Details', 'Personal Info', 'Employment', 'Review'] as const;
+type StepIndex = 0 | 1 | 2 | 3 | 4;
+
+const loanTypeOptions: RadioOption[] = [
+  { value: 'personal', label: 'Personal Loan', description: 'Flexible funds for any need', icon: <User size={20} /> },
+  { value: 'auto', label: 'Auto Loan', description: 'Finance a new or used vehicle', icon: <Car size={20} /> },
+  { value: 'home', label: 'Home Loan', description: 'Buy or refinance a home', icon: <HomeIcon size={20} /> },
+  { value: 'business', label: 'Business Loan', description: 'Grow your business', icon: <Building2 size={20} /> },
+  { value: 'education', label: 'Education Loan', description: 'Fund your studies', icon: <GraduationCap size={20} /> },
 ];
 
-const countryOptions: SelectOption[] = [
-  { value: 'uk', label: 'United Kingdom' },
-  { value: 'us', label: 'United States' },
-  { value: 'ca', label: 'Canada' },
-  { value: 'au', label: 'Australia' },
-  { value: 'de', label: 'Germany' },
-  { value: 'fr', label: 'France' },
+const termOptions: SelectOption[] = [
+  { value: '6', label: '6 months' },
+  { value: '12', label: '12 months' },
+  { value: '24', label: '24 months' },
+  { value: '36', label: '36 months' },
+  { value: '48', label: '48 months' },
+  { value: '60', label: '60 months' },
+  { value: '84', label: '84 months' },
+  { value: '120', label: '120 months' },
+  { value: '180', label: '180 months' },
+  { value: '360', label: '360 months' },
 ];
 
-const checkboxOptions = ['Email', 'SMS', 'In-app messages'];
+const employmentOptions: RadioOption[] = [
+  { value: 'employed', label: 'Employed', description: 'Working for an employer', icon: <Briefcase size={20} /> },
+  { value: 'self-employed', label: 'Self-Employed', description: 'Running your own business', icon: <Building2 size={20} /> },
+  { value: 'unemployed', label: 'Unemployed', description: 'Currently seeking work', icon: <User size={20} /> },
+  { value: 'retired', label: 'Retired', description: 'No longer working', icon: <Clock size={20} /> },
+];
+
+/* ---------- form state type ---------- */
+
+interface FormState {
+  loanType: string;
+  loanAmount: string;
+  loanTerm: string;
+  loanPurpose: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  address: string;
+  employmentStatus: string;
+  monthlyIncome: string;
+  employerName: string;
+  consentCredit: boolean;
+  consentTerms: boolean;
+}
+
+const initialState: FormState = {
+  loanType: '',
+  loanAmount: '',
+  loanTerm: '',
+  loanPurpose: '',
+  fullName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  address: '',
+  employmentStatus: '',
+  monthlyIncome: '',
+  employerName: '',
+  consentCredit: false,
+  consentTerms: false,
+};
+
+/* ---------- helpers ---------- */
+
+const APR_BY_TYPE: Record<string, number> = {
+  personal: 0.1199,
+  auto: 0.0649,
+  home: 0.0499,
+  business: 0.0899,
+  education: 0.0599,
+};
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatCurrencyPrecise(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+/* ---------- main component ---------- */
 
 function App() {
-  const [selectedAccount, setSelectedAccount] = useState<string>('individual');
-  const [selectedCountry, setSelectedCountry] = useState<string>('');
-  const [bio, setBio] = useState<string>('Designer and developer based in London.');
-  const [checkedBoxes, setCheckedBoxes] = useState<string[]>(['Email']);
-  const [switches, setSwitches] = useState<{ email: boolean; push: boolean }>({ email: true, push: false });
+  const [step, setStep] = useState<StepIndex>(0);
+  const [form, setForm] = useState<FormState>(initialState);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [referenceId, setReferenceId] = useState<string>('');
+  const [error, setError] = useState<string>('');
 
-  const toggleCheckbox = (opt: string) => {
-    setCheckedBoxes((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setError('');
   };
-  const toggleSwitch = (key: 'email' | 'push', value: boolean) =>
-    setSwitches((prev) => ({ ...prev, [key]: value }));
+
+  const monthlyPayment = useMemo(() => {
+    const principal = parseFloat(form.loanAmount);
+    const term = parseInt(form.loanTerm);
+    const apr = APR_BY_TYPE[form.loanType];
+    if (!principal || !term || !apr) return null;
+    const monthlyRate = apr / 12;
+    const payment = (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+    return payment;
+  }, [form.loanAmount, form.loanTerm, form.loanType]);
+
+  const totalInterest = useMemo(() => {
+    if (!monthlyPayment) return null;
+    const principal = parseFloat(form.loanAmount);
+    const term = parseInt(form.loanTerm);
+    if (!principal || !term) return null;
+    return monthlyPayment * term - principal;
+  }, [monthlyPayment, form.loanAmount, form.loanTerm]);
+
+  /* ---------- validation ---------- */
+
+  const validateStep = (currentStep: StepIndex): string | null => {
+    switch (currentStep) {
+      case 0:
+        if (!form.loanType) return 'Please select a loan type to continue';
+        return null;
+      case 1:
+        if (!form.loanAmount || parseFloat(form.loanAmount) <= 0) return 'Please enter a loan amount';
+        if (parseFloat(form.loanAmount) < 500) return 'Minimum loan amount is $500';
+        if (parseFloat(form.loanAmount) > 500000) return 'Maximum loan amount is $500,000';
+        if (!form.loanTerm) return 'Please select a repayment term';
+        if (form.loanPurpose.trim().length < 10) return 'Please describe your loan purpose (at least 10 characters)';
+        return null;
+      case 2:
+        if (!form.fullName.trim()) return 'Please enter your full name';
+        if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Please enter a valid email address';
+        if (!form.phone.trim()) return 'Please enter your phone number';
+        if (!form.dateOfBirth) return 'Please enter your date of birth';
+        if (!form.address.trim()) return 'Please enter your home address';
+        return null;
+      case 3:
+        if (!form.employmentStatus) return 'Please select your employment status';
+        if (!form.monthlyIncome || parseFloat(form.monthlyIncome) <= 0) return 'Please enter your monthly income';
+        if ((form.employmentStatus === 'employed' || form.employmentStatus === 'self-employed') && !form.employerName.trim())
+          return 'Please enter your employer or business name';
+        return null;
+      case 4:
+        if (!form.consentCredit) return 'Please consent to the credit check to continue';
+        if (!form.consentTerms) return 'Please accept the terms and conditions to continue';
+        return null;
+      default:
+        return null;
+    }
+  };
+
+  const handleNext = () => {
+    const err = validateStep(step);
+    if (err) {
+      setError(err);
+      return;
+    }
+    if (step < 4) setStep((step + 1) as StepIndex);
+  };
+
+  const handleBack = () => {
+    setError('');
+    if (step > 0) setStep((step - 1) as StepIndex);
+  };
+
+  const handleSubmit = async () => {
+    const err = validateStep(4);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const { data, error: insertError } = await supabase
+        .from('loan_applications')
+        .insert({
+          full_name: form.fullName,
+          email: form.email,
+          phone: form.phone,
+          date_of_birth: form.dateOfBirth,
+          address: form.address,
+          loan_type: form.loanType,
+          loan_amount: parseFloat(form.loanAmount),
+          loan_term_months: parseInt(form.loanTerm),
+          loan_purpose: form.loanPurpose,
+          employment_status: form.employmentStatus,
+          monthly_income: parseFloat(form.monthlyIncome),
+          employer_name: form.employerName || null,
+          consent_credit_check: form.consentCredit,
+          consent_terms: form.consentTerms,
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw new Error(insertError.message);
+
+      setReferenceId(data.id);
+      setSubmitted(true);
+    } catch (err) {
+      setError('We could not submit your application. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setForm(initialState);
+    setStep(0);
+    setSubmitted(false);
+    setReferenceId('');
+    setError('');
+  };
+
+  /* ---------- success screen ---------- */
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-brand-100 py-10 px-4">
+        <div className="mx-auto w-full max-w-[390px]">
+          <div className="rounded-[2.5rem] bg-brand-50 shadow-phone overflow-hidden">
+            <div className="flex items-center justify-between bg-brand-700 px-7 py-3 text-xs font-medium text-white/90">
+              <span>9:41</span>
+              <div className="flex items-center gap-1">
+                <span className="h-2 w-3 rounded-sm bg-white/80" />
+                <span className="h-2 w-4 rounded-sm bg-white/80" />
+                <span className="h-2 w-5 rounded-sm bg-white/80" />
+              </div>
+            </div>
+
+            <div className="bg-brand-50 px-6 py-10 text-center">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500">
+                  <Check size={32} strokeWidth={3} className="text-white" />
+                </div>
+              </div>
+              <h2 className="text-xl font-bold text-brand-800">Application Submitted!</h2>
+              <p className="mt-2 text-sm text-brand-500">
+                Your loan application has been received and is now under review. We'll contact you within 2-3 business days.
+              </p>
+
+              <div className="mt-6 rounded-2xl border border-brand-200 bg-white p-5 text-left">
+                <div className="flex items-center justify-between border-b border-brand-100 pb-3">
+                  <span className="text-xs font-medium text-brand-400">Reference ID</span>
+                  <span className="font-mono text-xs font-semibold text-brand-700">
+                    {referenceId.slice(0, 8).toUpperCase()}
+                  </span>
+                </div>
+                <div className="space-y-2 pt-3">
+                  <SummaryRow label="Loan Type" value={loanTypeOptions.find((o) => o.value === form.loanType)?.label || ''} />
+                  <SummaryRow label="Amount" value={formatCurrency(parseFloat(form.loanAmount))} />
+                  <SummaryRow label="Term" value={termOptions.find((o) => o.value === form.loanTerm)?.label || ''} />
+                  <SummaryRow label="Status" value="Pending Review" badge />
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <Button variant="primary" fullWidth onClick={handleReset}>
+                  <Sparkles size={16} />
+                  Apply for Another Loan
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-center bg-brand-50 pb-2 pt-1">
+              <span className="h-1 w-32 rounded-full bg-brand-300" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- main form ---------- */
 
   return (
     <div className="min-h-screen bg-brand-100 py-10 px-4">
@@ -51,272 +332,337 @@ function App() {
           </div>
 
           {/* header */}
-          <div className="bg-brand-700 px-6 pb-6 pt-4">
-            <h1 className="text-xl font-semibold text-white">UI Components</h1>
-            <p className="text-sm text-white/70">Interactive design system showcase</p>
+          <div className="bg-brand-700 px-6 pb-5 pt-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                <TrendingUp size={20} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold text-white">Apply for a Loan</h1>
+                <p className="text-xs text-white/60">Step {step + 1} of {STEPS.length} — {STEPS[step]}</p>
+              </div>
+            </div>
+
+            {/* progress bar */}
+            <div className="mt-4 flex gap-1.5">
+              {STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                    i <= step ? 'bg-white' : 'bg-white/20'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
 
           {/* scrollable content */}
-          <div className="space-y-8 bg-brand-50 px-6 py-6">
-            {/* Radio option buttons - shown first */}
-            <Section title="Option Buttons" subtitle="Used as radio selectors — tap to choose">
-              <div className="space-y-3">
-                {accountOptions.map((opt) => (
-                  <RadioOptionButton
-                    key={opt.value}
-                    option={opt}
-                    selected={selectedAccount === opt.value}
-                    onSelect={setSelectedAccount}
-                  />
-                ))}
-                {/* disabled example */}
-                <RadioOptionButton
-                  option={{ ...accountOptions[1], label: 'Company (locked)', description: 'Unavailable for this plan' }}
-                  selected={false}
-                  disabled
-                  onSelect={() => {}}
+          <div className="min-h-[520px] space-y-5 bg-brand-50 px-6 py-6">
+            {/* STEP 0 — Loan Type */}
+            {step === 0 && (
+              <StepContent>
+                <StepHeading
+                  title="What type of loan do you need?"
+                  subtitle="Choose the option that best fits your goals"
                 />
-              </div>
-              <p className="pt-1 text-xs text-brand-400">
-                Selected: <span className="font-semibold text-brand-600">{selectedAccount}</span>
-              </p>
-            </Section>
-
-            <Divider />
-
-            {/* Icon button */}
-            <Section title="Icon Button" subtitle="Compact, icon-only action">
-              <StateRow label="Default">
-                <IconButton aria-label="add">
-                  <Plus size={20} />
-                </IconButton>
-              </StateRow>
-              <StateRow label="Pressed">
-                <IconButton aria-label="favorite">
-                  <Heart size={20} />
-                </IconButton>
-              </StateRow>
-              <StateRow label="Disabled">
-                <IconButton aria-label="add" disabled>
-                  <Plus size={20} />
-                </IconButton>
-              </StateRow>
-            </Section>
-
-            <Divider />
-
-            {/* Default button */}
-            <Section title="Default Button" subtitle="Standard text button">
-              <StateRow label="Default">
-                <Button variant="default">Continue</Button>
-              </StateRow>
-              <StateRow label="Pressed">
-                <Button variant="default">Continue</Button>
-              </StateRow>
-              <StateRow label="Disabled">
-                <Button variant="default" disabled>
-                  Continue
-                </Button>
-              </StateRow>
-            </Section>
-
-            <Divider />
-
-            {/* Primary button */}
-            <Section title="Primary Button" subtitle="Main call to action">
-              <StateRow label="Default">
-                <Button variant="primary">
-                  Get started
-                  <ArrowRight size={16} />
-                </Button>
-              </StateRow>
-              <StateRow label="Pressed">
-                <Button variant="primary">
-                  Get started
-                  <ArrowRight size={16} />
-                </Button>
-              </StateRow>
-              <StateRow label="Disabled">
-                <Button variant="primary" disabled>
-                  Get started
-                </Button>
-              </StateRow>
-            </Section>
-
-            <Divider />
-
-            {/* Secondary button */}
-            <Section title="Secondary Button" subtitle="Supporting action">
-              <StateRow label="Default">
-                <Button variant="secondary">Learn more</Button>
-              </StateRow>
-              <StateRow label="Pressed">
-                <Button variant="secondary">Learn more</Button>
-              </StateRow>
-              <StateRow label="Disabled">
-                <Button variant="secondary" disabled>
-                  Learn more
-                </Button>
-              </StateRow>
-            </Section>
-
-            <Divider />
-
-            {/* Outline button */}
-            <Section title="Outline Button" subtitle="Subtle, bordered action">
-              <StateRow label="Default">
-                <Button variant="outline">Skip for now</Button>
-              </StateRow>
-              <StateRow label="Pressed">
-                <Button variant="outline">Skip for now</Button>
-              </StateRow>
-              <StateRow label="Disabled">
-                <Button variant="outline" disabled>
-                  Skip for now
-                </Button>
-              </StateRow>
-            </Section>
-
-            <Divider />
-
-            {/* adjacent button pairs */}
-            <Section title="Adjacent Buttons" subtitle="Two actions side by side">
-              <div className="space-y-3">
-                <div className="flex gap-3">
-                  <Button variant="outline" fullWidth>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" fullWidth>
-                    Save
-                  </Button>
+                <div className="space-y-3">
+                  {loanTypeOptions.map((opt) => (
+                    <RadioOptionButton
+                      key={opt.value}
+                      option={opt}
+                      selected={form.loanType === opt.value}
+                      onSelect={(v) => update('loanType', v)}
+                    />
+                  ))}
                 </div>
-                <div className="flex gap-3">
-                  <Button variant="secondary" fullWidth>
-                    Back
-                  </Button>
-                  <Button variant="default" fullWidth>
-                    Next
-                  </Button>
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" fullWidth disabled>
-                    No
-                  </Button>
-                  <Button variant="primary" fullWidth>
-                    Yes
-                  </Button>
-                </div>
-                <div className="flex gap-3">
-                  <IconButton aria-label="previous">
-                    <ArrowRight size={20} className="rotate-180" />
-                  </IconButton>
-                  <Button variant="primary" fullWidth>
-                    Continue
-                  </Button>
-                  <IconButton aria-label="next">
-                    <ArrowRight size={20} />
-                  </IconButton>
-                </div>
-              </div>
-            </Section>
+              </StepContent>
+            )}
 
-            <Divider />
+            {/* STEP 1 — Loan Details */}
+            {step === 1 && (
+              <StepContent>
+                <StepHeading
+                  title="Loan details"
+                  subtitle="Tell us how much you need and what for"
+                />
 
-            {/* full-width demo */}
-            <Section title="Full Width" subtitle="Stacked actions in a flow">
-              <div className="space-y-3">
-                <Button variant="primary" fullWidth>
-                  <Check size={16} />
-                  Confirm selection
-                </Button>
-                <Button variant="outline" fullWidth>
-                  Cancel
-                </Button>
-              </div>
-            </Section>
-
-            <Divider />
-
-            {/* text input */}
-            <Section title="Text Input" subtitle="Single-line text fields">
-              <div className="space-y-4">
-                <Input label="Default" placeholder="Enter your name" />
-                <Input label="With icon" placeholder="you@example.com" leftIcon={<Mail size={18} />} />
-                <Input label="Filled" defaultValue="Jane Doe" />
-                <Input label="Error" placeholder="Enter email" error errorText="Please enter a valid email address" />
-                <Input label="Disabled" placeholder="Cannot edit" disabled helperText="This field is locked" />
-              </div>
-            </Section>
-
-            <Divider />
-
-            {/* search input */}
-            <Section title="Search Input" subtitle="With leading search icon">
-              <SearchInput placeholder="Search accounts…" />
-            </Section>
-
-            <Divider />
-
-            {/* select */}
-            <Section title="Select" subtitle="Dropdown selector — tap to open">
-              <Select
-                label="Country"
-                options={countryOptions}
-                value={selectedCountry}
-                onChange={setSelectedCountry}
-              />
-              <Select label="Disabled" options={countryOptions} value="" onChange={() => {}} disabled />
-            </Section>
-
-            <Divider />
-
-            {/* textarea */}
-            <Section title="Textarea" subtitle="Multi-line text with character counter">
-              <Textarea
-                label="Bio"
-                value={bio}
-                onChange={setBio}
-                placeholder="Tell us about yourself…"
-                maxLength={200}
-                helperText="Up to 200 characters"
-              />
-              <Textarea
-                label="Error"
-                value="Too short!"
-                onChange={() => {}}
-                error
-                errorText="Please write at least 20 characters"
-              />
-              <Textarea label="Disabled" value="" onChange={() => {}} placeholder="Cannot edit" disabled />
-            </Section>
-
-            <Divider />
-
-            {/* checkboxes */}
-            <Section title="Checkbox" subtitle="Multi-select options">
-              <div className="space-y-3">
-                {checkboxOptions.map((opt) => (
-                  <Checkbox
-                    key={opt}
-                    label={opt}
-                    checked={checkedBoxes.includes(opt)}
-                    onChange={() => toggleCheckbox(opt)}
+                <div className="space-y-4">
+                  <Input
+                    label="Loan Amount (USD)"
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="e.g. 15000"
+                    value={form.loanAmount}
+                    onChange={(e) => update('loanAmount', e.target.value)}
+                    leftIcon={<DollarSign size={18} />}
+                    helperText="Min $500 — Max $500,000"
                   />
-                ))}
-                <Checkbox label="Unavailable option" checked={false} onChange={() => {}} disabled />
-              </div>
-            </Section>
 
-            <Divider />
+                  <Select
+                    label="Repayment Term"
+                    options={termOptions}
+                    value={form.loanTerm}
+                    onChange={(v) => update('loanTerm', v)}
+                    placeholder="Choose a term…"
+                  />
 
-            {/* switches */}
-            <Section title="Switch" subtitle="Toggle settings on or off">
-              <div className="space-y-3">
-                <Switch label="Email notifications" checked={switches.email} onChange={(v) => toggleSwitch('email', v)} />
-                <Switch label="Push notifications" checked={switches.push} onChange={(v) => toggleSwitch('push', v)} />
-                <Switch label="SMS alerts" checked={false} onChange={() => {}} disabled />
+                  <Textarea
+                    label="Purpose of Loan"
+                    value={form.loanPurpose}
+                    onChange={(v) => update('loanPurpose', v)}
+                    placeholder="Describe what the loan will be used for…"
+                    maxLength={300}
+                    helperText="Up to 300 characters"
+                    rows={3}
+                  />
+                </div>
+
+                {/* live estimate */}
+                {monthlyPayment && (
+                  <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Sparkles size={16} className="text-brand-500" />
+                      <span className="text-xs font-semibold text-brand-600">Estimated Repayment</span>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-2xl font-bold text-brand-800">
+                          {formatCurrencyPrecise(monthlyPayment)}
+                        </p>
+                        <p className="text-xs text-brand-400">per month</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-brand-600">
+                          {(APR_BY_TYPE[form.loanType] * 100).toFixed(2)}%
+                        </p>
+                        <p className="text-xs text-brand-400">est. APR</p>
+                      </div>
+                    </div>
+                    {totalInterest !== null && (
+                      <div className="mt-3 border-t border-brand-100 pt-3">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-brand-400">Total Interest</span>
+                          <span className="font-medium text-brand-600">{formatCurrencyPrecise(totalInterest)}</span>
+                        </div>
+                        <div className="mt-1 flex justify-between text-xs">
+                          <span className="text-brand-400">Total Repayment</span>
+                          <span className="font-medium text-brand-600">
+                            {formatCurrencyPrecise(monthlyPayment * parseInt(form.loanTerm))}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </StepContent>
+            )}
+
+            {/* STEP 2 — Personal Info */}
+            {step === 2 && (
+              <StepContent>
+                <StepHeading
+                  title="Personal information"
+                  subtitle="We need these to verify your identity"
+                />
+                <div className="space-y-4">
+                  <Input
+                    label="Full Name"
+                    placeholder="Jane Doe"
+                    value={form.fullName}
+                    onChange={(e) => update('fullName', e.target.value)}
+                    leftIcon={<User size={18} />}
+                  />
+                  <Input
+                    label="Email Address"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={form.email}
+                    onChange={(e) => update('email', e.target.value)}
+                    leftIcon={<Mail size={18} />}
+                  />
+                  <Input
+                    label="Phone Number"
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                    value={form.phone}
+                    onChange={(e) => update('phone', e.target.value)}
+                    leftIcon={<Phone size={18} />}
+                  />
+                  <Input
+                    label="Date of Birth"
+                    type="date"
+                    value={form.dateOfBirth}
+                    onChange={(e) => update('dateOfBirth', e.target.value)}
+                    leftIcon={<Calendar size={18} />}
+                  />
+                  <Textarea
+                    label="Home Address"
+                    value={form.address}
+                    onChange={(v) => update('address', v)}
+                    placeholder="Street, City, State, ZIP"
+                    rows={2}
+                  />
+                </div>
+              </StepContent>
+            )}
+
+            {/* STEP 3 — Employment */}
+            {step === 3 && (
+              <StepContent>
+                <StepHeading
+                  title="Employment & income"
+                  subtitle="This helps us assess your repayment ability"
+                />
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    {employmentOptions.map((opt) => (
+                      <RadioOptionButton
+                        key={opt.value}
+                        option={opt}
+                        selected={form.employmentStatus === opt.value}
+                        onSelect={(v) => update('employmentStatus', v)}
+                      />
+                    ))}
+                  </div>
+
+                  <Input
+                    label="Monthly Income (USD)"
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="e.g. 4500"
+                    value={form.monthlyIncome}
+                    onChange={(e) => update('monthlyIncome', e.target.value)}
+                    leftIcon={<DollarSign size={18} />}
+                    helperText="Gross monthly income before taxes"
+                  />
+
+                  {(form.employmentStatus === 'employed' || form.employmentStatus === 'self-employed') && (
+                    <Input
+                      label={form.employmentStatus === 'self-employed' ? 'Business Name' : 'Employer Name'}
+                      placeholder={form.employmentStatus === 'self-employed' ? 'Your business name' : 'Company name'}
+                      value={form.employerName}
+                      onChange={(e) => update('employerName', e.target.value)}
+                      leftIcon={<Building2 size={18} />}
+                    />
+                  )}
+                </div>
+              </StepContent>
+            )}
+
+            {/* STEP 4 — Review */}
+            {step === 4 && (
+              <StepContent>
+                <StepHeading
+                  title="Review your application"
+                  subtitle="Please verify everything looks correct"
+                />
+
+                {/* loan summary card */}
+                <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <FileText size={16} className="text-brand-500" />
+                    <span className="text-xs font-semibold text-brand-600">Loan Summary</span>
+                  </div>
+                  <div className="space-y-2">
+                    <SummaryRow label="Type" value={loanTypeOptions.find((o) => o.value === form.loanType)?.label || ''} />
+                    <SummaryRow label="Amount" value={formatCurrency(parseFloat(form.loanAmount))} />
+                    <SummaryRow label="Term" value={termOptions.find((o) => o.value === form.loanTerm)?.label || ''} />
+                    {monthlyPayment && (
+                      <SummaryRow label="Monthly Payment" value={formatCurrencyPrecise(monthlyPayment)} highlight />
+                    )}
+                  </div>
+                </div>
+
+                {/* personal info card */}
+                <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <User size={16} className="text-brand-500" />
+                    <span className="text-xs font-semibold text-brand-600">Personal Information</span>
+                  </div>
+                  <div className="space-y-2">
+                    <SummaryRow label="Name" value={form.fullName} />
+                    <SummaryRow label="Email" value={form.email} />
+                    <SummaryRow label="Phone" value={form.phone} />
+                    <SummaryRow label="Date of Birth" value={form.dateOfBirth} />
+                    <SummaryRow label="Address" value={form.address} />
+                  </div>
+                </div>
+
+                {/* employment card */}
+                <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Briefcase size={16} className="text-brand-500" />
+                    <span className="text-xs font-semibold text-brand-600">Employment & Income</span>
+                  </div>
+                  <div className="space-y-2">
+                    <SummaryRow
+                      label="Status"
+                      value={employmentOptions.find((o) => o.value === form.employmentStatus)?.label || ''}
+                    />
+                    <SummaryRow label="Monthly Income" value={formatCurrency(parseFloat(form.monthlyIncome))} />
+                    {form.employerName && <SummaryRow label="Employer" value={form.employerName} />}
+                  </div>
+                </div>
+
+                {/* consent */}
+                <div className="space-y-3">
+                  <Checkbox
+                    label="I consent to a credit check as part of this application"
+                    checked={form.consentCredit}
+                    onChange={(v) => update('consentCredit', v)}
+                  />
+                  <Checkbox
+                    label="I have read and agree to the terms and conditions"
+                    checked={form.consentTerms}
+                    onChange={(v) => update('consentTerms', v)}
+                  />
+                </div>
+
+                <div className="flex items-start gap-2 rounded-xl bg-brand-100 p-3">
+                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                  <p className="text-xs text-brand-500">
+                    Your information is encrypted and securely stored. Submitting this application does not guarantee approval.
+                  </p>
+                </div>
+              </StepContent>
+            )}
+
+            {/* error message */}
+            {error && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <span className="text-xs font-medium text-red-600">{error}</span>
               </div>
-            </Section>
+            )}
+          </div>
+
+          {/* navigation footer */}
+          <div className="flex gap-3 bg-brand-50 px-6 pb-6 pt-2">
+            {step > 0 && (
+              <Button variant="outline" onClick={handleBack} disabled={submitting}>
+                <ArrowLeft size={16} />
+                Back
+              </Button>
+            )}
+            {step < 4 ? (
+              <Button variant="primary" fullWidth={step === 0} onClick={handleNext}>
+                Continue
+                <ArrowRight size={16} />
+              </Button>
+            ) : (
+              <Button variant="primary" fullWidth onClick={handleSubmit} disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Submitting…
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    Submit Application
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           {/* home indicator */}
@@ -329,8 +675,50 @@ function App() {
   );
 }
 
-function Divider() {
-  return <div className="h-px bg-brand-200" />;
+/* ---------- sub-components ---------- */
+
+function StepContent({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="animate-fade-in space-y-5">
+      {children}
+    </div>
+  );
+}
+
+function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-brand-800">{title}</h2>
+      <p className="text-xs text-brand-400">{subtitle}</p>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  highlight,
+  badge,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  badge?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-brand-400">{label}</span>
+      {badge ? (
+        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+          {value}
+        </span>
+      ) : (
+        <span className={`text-xs font-medium ${highlight ? 'text-brand-700' : 'text-brand-600'}`}>
+          {value}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default App;
