@@ -1,24 +1,5 @@
 import { useState, useMemo, type ReactNode } from 'react';
-import {
-  User,
-  Mail,
-  Phone,
-  Calendar,
-  Briefcase,
-  Building2,
-  DollarSign,
-  GraduationCap,
-  Home as HomeIcon,
-  Car,
-  ArrowRight,
-  ArrowLeft,
-  Check,
-  Clock,
-  ShieldCheck,
-  FileText,
-  Sparkles,
-  Landmark,
-} from 'lucide-react';
+import { User, Mail, Phone, Calendar, Briefcase, Building2, DollarSign, GraduationCap, Chrome as HomeIcon, Car, ArrowRight, ArrowLeft, Check, Clock, ShieldCheck, FileText, Sparkles, Landmark } from 'lucide-react';
 import { Button, RadioOptionButton, type RadioOption } from '@/components/buttons';
 import { Input, Select, Textarea, Checkbox, type SelectOption } from '@/components/inputs';
 import { Section, StateRow } from '@/components/Section';
