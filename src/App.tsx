@@ -4,14 +4,12 @@ import {
   Mail,
   Phone,
   Calendar,
-  MapPin,
   Briefcase,
   Building2,
   DollarSign,
   GraduationCap,
   Home as HomeIcon,
   Car,
-  Plane,
   ArrowRight,
   ArrowLeft,
   Check,
@@ -23,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button, RadioOptionButton, type RadioOption } from '@/components/buttons';
 import { Input, Select, Textarea, Checkbox, type SelectOption } from '@/components/inputs';
+import { Section, StateRow } from '@/components/Section';
 import { supabase } from '@/lib/supabase';
 
 /* ---------- step definitions ---------- */
@@ -240,7 +239,7 @@ function App() {
 
       setReferenceId(data.id);
       setSubmitted(true);
-    } catch (err) {
+    } catch {
       setError('We could not submit your application. Please check your connection and try again.');
     } finally {
       setSubmitting(false);
@@ -262,14 +261,7 @@ function App() {
       <div className="min-h-screen bg-brand-100 py-10 px-4">
         <div className="mx-auto w-full max-w-[390px]">
           <div className="rounded-[2.5rem] bg-brand-50 shadow-phone overflow-hidden">
-            <div className="flex items-center justify-between bg-brand-700 px-7 py-3 text-xs font-medium text-white/90">
-              <span>9:41</span>
-              <div className="flex items-center gap-1">
-                <span className="h-2 w-3 rounded-sm bg-white/80" />
-                <span className="h-2 w-4 rounded-sm bg-white/80" />
-                <span className="h-2 w-5 rounded-sm bg-white/80" />
-              </div>
-            </div>
+            <StatusBar />
 
             <div className="bg-brand-50 px-6 py-10 text-center">
               <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
@@ -290,10 +282,26 @@ function App() {
                   </span>
                 </div>
                 <div className="space-y-2 pt-3">
-                  <SummaryRow label="Loan Type" value={loanTypeOptions.find((o) => o.value === form.loanType)?.label || ''} />
-                  <SummaryRow label="Amount" value={formatCurrency(parseFloat(form.loanAmount))} />
-                  <SummaryRow label="Term" value={termOptions.find((o) => o.value === form.loanTerm)?.label || ''} />
-                  <SummaryRow label="Status" value="Pending Review" badge />
+                  <StateRow label="Type">
+                    <span className="text-xs font-medium text-brand-600">
+                      {loanTypeOptions.find((o) => o.value === form.loanType)?.label || ''}
+                    </span>
+                  </StateRow>
+                  <StateRow label="Amount">
+                    <span className="text-xs font-medium text-brand-600">
+                      {formatCurrency(parseFloat(form.loanAmount))}
+                    </span>
+                  </StateRow>
+                  <StateRow label="Term">
+                    <span className="text-xs font-medium text-brand-600">
+                      {termOptions.find((o) => o.value === form.loanTerm)?.label || ''}
+                    </span>
+                  </StateRow>
+                  <StateRow label="Status">
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                      Pending Review
+                    </span>
+                  </StateRow>
                 </div>
               </div>
 
@@ -305,9 +313,7 @@ function App() {
               </div>
             </div>
 
-            <div className="flex justify-center bg-brand-50 pb-2 pt-1">
-              <span className="h-1 w-32 rounded-full bg-brand-300" />
-            </div>
+            <HomeIndicator />
           </div>
         </div>
       </div>
@@ -321,15 +327,7 @@ function App() {
       <div className="mx-auto w-full max-w-[390px]">
         {/* phone frame */}
         <div className="rounded-[2.5rem] bg-brand-50 shadow-phone overflow-hidden">
-          {/* status bar */}
-          <div className="flex items-center justify-between bg-brand-700 px-7 py-3 text-xs font-medium text-white/90">
-            <span>9:41</span>
-            <div className="flex items-center gap-1">
-              <span className="h-2 w-3 rounded-sm bg-white/80" />
-              <span className="h-2 w-4 rounded-sm bg-white/80" />
-              <span className="h-2 w-5 rounded-sm bg-white/80" />
-            </div>
-          </div>
+          <StatusBar />
 
           {/* header */}
           <div className="bg-brand-700 px-6 pb-5 pt-4">
@@ -360,62 +358,57 @@ function App() {
           <div className="min-h-[520px] space-y-5 bg-brand-50 px-6 py-6">
             {/* STEP 0 — Loan Type */}
             {step === 0 && (
-              <StepContent>
-                <StepHeading
-                  title="What type of loan do you need?"
-                  subtitle="Choose the option that best fits your goals"
-                />
-                <div className="space-y-3">
-                  {loanTypeOptions.map((opt) => (
-                    <RadioOptionButton
-                      key={opt.value}
-                      option={opt}
-                      selected={form.loanType === opt.value}
-                      onSelect={(v) => update('loanType', v)}
-                    />
-                  ))}
-                </div>
-              </StepContent>
+              <div className="animate-fade-in">
+                <Section title="What type of loan do you need?" subtitle="Choose the option that best fits your goals">
+                  <div className="space-y-3">
+                    {loanTypeOptions.map((opt) => (
+                      <RadioOptionButton
+                        key={opt.value}
+                        option={opt}
+                        selected={form.loanType === opt.value}
+                        onSelect={(v) => update('loanType', v)}
+                      />
+                    ))}
+                  </div>
+                </Section>
+              </div>
             )}
 
             {/* STEP 1 — Loan Details */}
             {step === 1 && (
-              <StepContent>
-                <StepHeading
-                  title="Loan details"
-                  subtitle="Tell us how much you need and what for"
-                />
+              <div className="animate-fade-in space-y-5">
+                <Section title="Loan details" subtitle="Tell us how much you need and what for">
+                  <div className="space-y-4">
+                    <Input
+                      label="Loan Amount (USD)"
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="e.g. 15000"
+                      value={form.loanAmount}
+                      onChange={(e) => update('loanAmount', e.target.value)}
+                      leftIcon={<DollarSign size={18} />}
+                      helperText="Min $500 — Max $500,000"
+                    />
 
-                <div className="space-y-4">
-                  <Input
-                    label="Loan Amount (USD)"
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="e.g. 15000"
-                    value={form.loanAmount}
-                    onChange={(e) => update('loanAmount', e.target.value)}
-                    leftIcon={<DollarSign size={18} />}
-                    helperText="Min $500 — Max $500,000"
-                  />
+                    <Select
+                      label="Repayment Term"
+                      options={termOptions}
+                      value={form.loanTerm}
+                      onChange={(v) => update('loanTerm', v)}
+                      placeholder="Choose a term…"
+                    />
 
-                  <Select
-                    label="Repayment Term"
-                    options={termOptions}
-                    value={form.loanTerm}
-                    onChange={(v) => update('loanTerm', v)}
-                    placeholder="Choose a term…"
-                  />
-
-                  <Textarea
-                    label="Purpose of Loan"
-                    value={form.loanPurpose}
-                    onChange={(v) => update('loanPurpose', v)}
-                    placeholder="Describe what the loan will be used for…"
-                    maxLength={300}
-                    helperText="Up to 300 characters"
-                    rows={3}
-                  />
-                </div>
+                    <Textarea
+                      label="Purpose of Loan"
+                      value={form.loanPurpose}
+                      onChange={(v) => update('loanPurpose', v)}
+                      placeholder="Describe what the loan will be used for…"
+                      maxLength={300}
+                      helperText="Up to 300 characters"
+                      rows={3}
+                    />
+                  </div>
+                </Section>
 
                 {/* live estimate */}
                 {monthlyPayment && (
@@ -454,177 +447,206 @@ function App() {
                     )}
                   </div>
                 )}
-              </StepContent>
+              </div>
             )}
 
             {/* STEP 2 — Personal Info */}
             {step === 2 && (
-              <StepContent>
-                <StepHeading
-                  title="Personal information"
-                  subtitle="We need these to verify your identity"
-                />
-                <div className="space-y-4">
-                  <Input
-                    label="Full Name"
-                    placeholder="Jane Doe"
-                    value={form.fullName}
-                    onChange={(e) => update('fullName', e.target.value)}
-                    leftIcon={<User size={18} />}
-                  />
-                  <Input
-                    label="Email Address"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={form.email}
-                    onChange={(e) => update('email', e.target.value)}
-                    leftIcon={<Mail size={18} />}
-                  />
-                  <Input
-                    label="Phone Number"
-                    type="tel"
-                    placeholder="(555) 123-4567"
-                    value={form.phone}
-                    onChange={(e) => update('phone', e.target.value)}
-                    leftIcon={<Phone size={18} />}
-                  />
-                  <Input
-                    label="Date of Birth"
-                    type="date"
-                    value={form.dateOfBirth}
-                    onChange={(e) => update('dateOfBirth', e.target.value)}
-                    leftIcon={<Calendar size={18} />}
-                  />
-                  <Textarea
-                    label="Home Address"
-                    value={form.address}
-                    onChange={(v) => update('address', v)}
-                    placeholder="Street, City, State, ZIP"
-                    rows={2}
-                  />
-                </div>
-              </StepContent>
+              <div className="animate-fade-in">
+                <Section title="Personal information" subtitle="We need these to verify your identity">
+                  <div className="space-y-4">
+                    <Input
+                      label="Full Name"
+                      placeholder="Jane Doe"
+                      value={form.fullName}
+                      onChange={(e) => update('fullName', e.target.value)}
+                      leftIcon={<User size={18} />}
+                    />
+                    <Input
+                      label="Email Address"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={form.email}
+                      onChange={(e) => update('email', e.target.value)}
+                      leftIcon={<Mail size={18} />}
+                    />
+                    <Input
+                      label="Phone Number"
+                      type="tel"
+                      placeholder="(555) 123-4567"
+                      value={form.phone}
+                      onChange={(e) => update('phone', e.target.value)}
+                      leftIcon={<Phone size={18} />}
+                    />
+                    <Input
+                      label="Date of Birth"
+                      type="date"
+                      value={form.dateOfBirth}
+                      onChange={(e) => update('dateOfBirth', e.target.value)}
+                      leftIcon={<Calendar size={18} />}
+                    />
+                    <Textarea
+                      label="Home Address"
+                      value={form.address}
+                      onChange={(v) => update('address', v)}
+                      placeholder="Street, City, State, ZIP"
+                      rows={2}
+                    />
+                  </div>
+                </Section>
+              </div>
             )}
 
             {/* STEP 3 — Employment */}
             {step === 3 && (
-              <StepContent>
-                <StepHeading
-                  title="Employment & income"
-                  subtitle="This helps us assess your repayment ability"
-                />
-                <div className="space-y-4">
-                  <div className="space-y-3">
-                    {employmentOptions.map((opt) => (
-                      <RadioOptionButton
-                        key={opt.value}
-                        option={opt}
-                        selected={form.employmentStatus === opt.value}
-                        onSelect={(v) => update('employmentStatus', v)}
-                      />
-                    ))}
-                  </div>
+              <div className="animate-fade-in">
+                <Section title="Employment & income" subtitle="This helps us assess your repayment ability">
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      {employmentOptions.map((opt) => (
+                        <RadioOptionButton
+                          key={opt.value}
+                          option={opt}
+                          selected={form.employmentStatus === opt.value}
+                          onSelect={(v) => update('employmentStatus', v)}
+                        />
+                      ))}
+                    </div>
 
-                  <Input
-                    label="Monthly Income (USD)"
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="e.g. 4500"
-                    value={form.monthlyIncome}
-                    onChange={(e) => update('monthlyIncome', e.target.value)}
-                    leftIcon={<DollarSign size={18} />}
-                    helperText="Gross monthly income before taxes"
-                  />
-
-                  {(form.employmentStatus === 'employed' || form.employmentStatus === 'self-employed') && (
                     <Input
-                      label={form.employmentStatus === 'self-employed' ? 'Business Name' : 'Employer Name'}
-                      placeholder={form.employmentStatus === 'self-employed' ? 'Your business name' : 'Company name'}
-                      value={form.employerName}
-                      onChange={(e) => update('employerName', e.target.value)}
-                      leftIcon={<Building2 size={18} />}
+                      label="Monthly Income (USD)"
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="e.g. 4500"
+                      value={form.monthlyIncome}
+                      onChange={(e) => update('monthlyIncome', e.target.value)}
+                      leftIcon={<DollarSign size={18} />}
+                      helperText="Gross monthly income before taxes"
                     />
-                  )}
-                </div>
-              </StepContent>
+
+                    {(form.employmentStatus === 'employed' || form.employmentStatus === 'self-employed') && (
+                      <Input
+                        label={form.employmentStatus === 'self-employed' ? 'Business Name' : 'Employer Name'}
+                        placeholder={form.employmentStatus === 'self-employed' ? 'Your business name' : 'Company name'}
+                        value={form.employerName}
+                        onChange={(e) => update('employerName', e.target.value)}
+                        leftIcon={<Building2 size={18} />}
+                      />
+                    )}
+                  </div>
+                </Section>
+              </div>
             )}
 
             {/* STEP 4 — Review */}
             {step === 4 && (
-              <StepContent>
-                <StepHeading
-                  title="Review your application"
-                  subtitle="Please verify everything looks correct"
-                />
+              <div className="animate-fade-in space-y-5">
+                <Section title="Loan Summary">
+                  <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <FileText size={16} className="text-brand-500" />
+                      <span className="text-xs font-semibold text-brand-600">Loan Details</span>
+                    </div>
+                    <div className="space-y-2">
+                      <StateRow label="Type">
+                        <span className="text-xs font-medium text-brand-600">
+                          {loanTypeOptions.find((o) => o.value === form.loanType)?.label || ''}
+                        </span>
+                      </StateRow>
+                      <StateRow label="Amount">
+                        <span className="text-xs font-medium text-brand-600">
+                          {formatCurrency(parseFloat(form.loanAmount))}
+                        </span>
+                      </StateRow>
+                      <StateRow label="Term">
+                        <span className="text-xs font-medium text-brand-600">
+                          {termOptions.find((o) => o.value === form.loanTerm)?.label || ''}
+                        </span>
+                      </StateRow>
+                      {monthlyPayment && (
+                        <StateRow label="Monthly">
+                          <span className="text-xs font-semibold text-brand-700">
+                            {formatCurrencyPrecise(monthlyPayment)}
+                          </span>
+                        </StateRow>
+                      )}
+                    </div>
+                  </div>
+                </Section>
 
-                {/* loan summary card */}
-                <div className="rounded-2xl border border-brand-200 bg-white p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <FileText size={16} className="text-brand-500" />
-                    <span className="text-xs font-semibold text-brand-600">Loan Summary</span>
+                <Section title="Personal Info">
+                  <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <User size={16} className="text-brand-500" />
+                      <span className="text-xs font-semibold text-brand-600">Applicant</span>
+                    </div>
+                    <div className="space-y-2">
+                      <StateRow label="Name">
+                        <span className="text-xs font-medium text-brand-600">{form.fullName}</span>
+                      </StateRow>
+                      <StateRow label="Email">
+                        <span className="text-xs font-medium text-brand-600">{form.email}</span>
+                      </StateRow>
+                      <StateRow label="Phone">
+                        <span className="text-xs font-medium text-brand-600">{form.phone}</span>
+                      </StateRow>
+                      <StateRow label="DOB">
+                        <span className="text-xs font-medium text-brand-600">{form.dateOfBirth}</span>
+                      </StateRow>
+                      <StateRow label="Address">
+                        <span className="text-xs font-medium text-brand-600">{form.address}</span>
+                      </StateRow>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <SummaryRow label="Type" value={loanTypeOptions.find((o) => o.value === form.loanType)?.label || ''} />
-                    <SummaryRow label="Amount" value={formatCurrency(parseFloat(form.loanAmount))} />
-                    <SummaryRow label="Term" value={termOptions.find((o) => o.value === form.loanTerm)?.label || ''} />
-                    {monthlyPayment && (
-                      <SummaryRow label="Monthly Payment" value={formatCurrencyPrecise(monthlyPayment)} highlight />
-                    )}
-                  </div>
-                </div>
+                </Section>
 
-                {/* personal info card */}
-                <div className="rounded-2xl border border-brand-200 bg-white p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <User size={16} className="text-brand-500" />
-                    <span className="text-xs font-semibold text-brand-600">Personal Information</span>
+                <Section title="Employment">
+                  <div className="rounded-2xl border border-brand-200 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Briefcase size={16} className="text-brand-500" />
+                      <span className="text-xs font-semibold text-brand-600">Income</span>
+                    </div>
+                    <div className="space-y-2">
+                      <StateRow label="Status">
+                        <span className="text-xs font-medium text-brand-600">
+                          {employmentOptions.find((o) => o.value === form.employmentStatus)?.label || ''}
+                        </span>
+                      </StateRow>
+                      <StateRow label="Income">
+                        <span className="text-xs font-medium text-brand-600">
+                          {formatCurrency(parseFloat(form.monthlyIncome))}
+                        </span>
+                      </StateRow>
+                      {form.employerName && (
+                        <StateRow label="Employer">
+                          <span className="text-xs font-medium text-brand-600">{form.employerName}</span>
+                        </StateRow>
+                      )}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <SummaryRow label="Name" value={form.fullName} />
-                    <SummaryRow label="Email" value={form.email} />
-                    <SummaryRow label="Phone" value={form.phone} />
-                    <SummaryRow label="Date of Birth" value={form.dateOfBirth} />
-                    <SummaryRow label="Address" value={form.address} />
-                  </div>
-                </div>
+                </Section>
 
-                {/* employment card */}
-                <div className="rounded-2xl border border-brand-200 bg-white p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Briefcase size={16} className="text-brand-500" />
-                    <span className="text-xs font-semibold text-brand-600">Employment & Income</span>
-                  </div>
-                  <div className="space-y-2">
-                    <SummaryRow
-                      label="Status"
-                      value={employmentOptions.find((o) => o.value === form.employmentStatus)?.label || ''}
+                <Section title="Consent">
+                  <div className="space-y-3">
+                    <Checkbox
+                      label="I consent to a credit check as part of this application"
+                      checked={form.consentCredit}
+                      onChange={(v) => update('consentCredit', v)}
                     />
-                    <SummaryRow label="Monthly Income" value={formatCurrency(parseFloat(form.monthlyIncome))} />
-                    {form.employerName && <SummaryRow label="Employer" value={form.employerName} />}
+                    <Checkbox
+                      label="I have read and agree to the terms and conditions"
+                      checked={form.consentTerms}
+                      onChange={(v) => update('consentTerms', v)}
+                    />
                   </div>
-                </div>
-
-                {/* consent */}
-                <div className="space-y-3">
-                  <Checkbox
-                    label="I consent to a credit check as part of this application"
-                    checked={form.consentCredit}
-                    onChange={(v) => update('consentCredit', v)}
-                  />
-                  <Checkbox
-                    label="I have read and agree to the terms and conditions"
-                    checked={form.consentTerms}
-                    onChange={(v) => update('consentTerms', v)}
-                  />
-                </div>
-
-                <div className="flex items-start gap-2 rounded-xl bg-brand-100 p-3">
-                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                  <p className="text-xs text-brand-500">
-                    Your information is encrypted and securely stored. Submitting this application does not guarantee approval.
-                  </p>
-                </div>
-              </StepContent>
+                  <div className="flex items-start gap-2 rounded-xl bg-brand-100 p-3">
+                    <ShieldCheck size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                    <p className="text-xs text-brand-500">
+                      Your information is encrypted and securely stored. Submitting this application does not guarantee approval.
+                    </p>
+                  </div>
+                </Section>
+              </div>
             )}
 
             {/* error message */}
@@ -665,58 +687,32 @@ function App() {
             )}
           </div>
 
-          {/* home indicator */}
-          <div className="flex justify-center bg-brand-50 pb-2 pt-1">
-            <span className="h-1 w-32 rounded-full bg-brand-300" />
-          </div>
+          <HomeIndicator />
         </div>
       </div>
     </div>
   );
 }
 
-/* ---------- sub-components ---------- */
+/* ---------- shared shell pieces ---------- */
 
-function StepContent({ children }: { children: React.ReactNode }) {
+function StatusBar() {
   return (
-    <div className="animate-fade-in space-y-5">
-      {children}
+    <div className="flex items-center justify-between bg-brand-700 px-7 py-3 text-xs font-medium text-white/90">
+      <span>9:41</span>
+      <div className="flex items-center gap-1">
+        <span className="h-2 w-3 rounded-sm bg-white/80" />
+        <span className="h-2 w-4 rounded-sm bg-white/80" />
+        <span className="h-2 w-5 rounded-sm bg-white/80" />
+      </div>
     </div>
   );
 }
 
-function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
+function HomeIndicator() {
   return (
-    <div>
-      <h2 className="text-lg font-semibold text-brand-800">{title}</h2>
-      <p className="text-xs text-brand-400">{subtitle}</p>
-    </div>
-  );
-}
-
-function SummaryRow({
-  label,
-  value,
-  highlight,
-  badge,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  badge?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-brand-400">{label}</span>
-      {badge ? (
-        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-          {value}
-        </span>
-      ) : (
-        <span className={`text-xs font-medium ${highlight ? 'text-brand-700' : 'text-brand-600'}`}>
-          {value}
-        </span>
-      )}
+    <div className="flex justify-center bg-brand-50 pb-2 pt-1">
+      <span className="h-1 w-32 rounded-full bg-brand-300" />
     </div>
   );
 }
